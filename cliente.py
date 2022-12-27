@@ -1,46 +1,52 @@
 import socket
 import threading
+import sys
 
 HOST = "localhost"
-PORT = 6666
-buffer_size = 1024 #tamanho da mensagem
-
-def receiveMessages(s):
-    while True:
-        try:
-            msg = s.recv(buffer_size).decode('utf-8')
-            print(msg)
-        except:
-            print("FALHA NA CONEXAO")
-            s.close()
-            break
-
-def sendMessages(s, nickname):
-    while True:
-        try:
-            msg = input()
-            s.send(f'{nickname}: {msg}'.encode('utf-8'))
-            #s.send(bytes(msg, "utf-8"))
-        except:
-            print("Errinho")
-            return
+PORT = 194
+buffer_size = 1024 # Tamanho da mensagem
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-try:
-    s.connect((HOST, PORT))
-except:
-    print("ERRO AO TENTAR SE CONECTAR")
-    print("HOST: " + str(HOST))
-    print("PORT: " + str(PORT))
-    exit()
+def receive_messages():
+    while True:
+        try:
+            msg = s.recv(buffer_size).decode('utf8')
+        except:
+            s.close()
+            print('Falha na conexao')
+            exit()
 
-nickname = input('Nickname: ')
-nome_real = input('Nome real: ')
-print("Conectado")
+        print(msg)
 
-thread1 = threading.Thread(target=receiveMessages, args=[s])
-thread2 = threading.Thread(target=sendMessages, args=[s, nickname])
+# Conecta com o servidor
+while True:
+    try:
+        s.connect((HOST, PORT))
+        break
 
-thread1.start()
-thread2.start()
+    except:
+        print("Servidor offline")
+        exit()
+
+# Multi treading
+thread = threading.Thread(target=receive_messages)
+thread.start()
+
+print("")
+
+# Processa a mensagem enviada
+while True:
+    msg = input()
+        
+    if msg[0] == '/':
+        msg = "[COMANDO] " + msg[1:]
+
+    try:
+        s.send(bytes(msg, "utf8"))
+    except:
+        exit()
+
+    # Apaga a ultima linha pra evitar mensagem duplicada no chat do usuario que enviou a mensagem
+    sys.stdout.write("\033[F")
+    sys.stdout.write("\033[K")
