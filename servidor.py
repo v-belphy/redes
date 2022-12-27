@@ -20,8 +20,9 @@ class User:
         self.sock = sock
         self.address = address[0]
         self.nickname = None
-        self.realname = None
+        self.username = None
         self.host = None
+        self.realname = None
         self.format_nick = ''
         self.current = self.find_channel('VOID')
         self.current.members += [self]
@@ -172,13 +173,19 @@ def func_client(user):
 
         #T0 D0: comando USER
         elif msg[:len('[COMANDO] USER ')] == '[COMANDO] USER ':
-            desired_user = msg[len('[COMANDO] NICK '):]
-            usuario = user.find_user(desired_user)
-            if usuario == None:
-                user.send("Usuario nao existe")
+            msg = msg[len('[COMANDO] USER '):]
+            foo = msg.find(':')
+            if foo < 0:
+                user.send(f"461 {user.nickname} USER :Not enough parameters")
             else:
-                # Enviar o realname e o host do desired_user
-                user.send("Funcao ainda nao implementada")
+                user.realname = msg[foo+1:]
+                params = msg[:foo]
+                if len(params) < 2:
+                    user.send(f"461 {user.nickname} USER :Not enough parameters")
+                else:
+                    user.username = params[0]
+                    user.host = user.sock.gethostname()
+
 
         elif msg == "[COMANDO] QUIT":
             print(user.address + " encerrou a sessao")
