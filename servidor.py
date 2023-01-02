@@ -121,6 +121,7 @@ def func_client(user):
         (username,realname) = (msg[1],msg[3][1:])
         user.username = username
         user.realname = realname
+        user.host = socket.gethostbyaddr(user.address)[0]
 
     # Insere o usuario no canal "MAIN"
     channel = user.find_channel('#MAIN')
@@ -135,11 +136,12 @@ def func_client(user):
             del_user(user)
             break
 
-
+        # NICK
         if msg[:len('NICK ')] == 'NICK ':
             desired_nickname = msg[len('NICK '):]
             user.change_nick(desired_nickname)
 
+        # USER
         elif msg[:len('USER ')] == 'USER ':
             msg = msg[len('USER '):]
             foo = msg.find(':')
@@ -154,12 +156,13 @@ def func_client(user):
                     user.username = params[0]
                     user.host = user.sock.gethostname()
 
-
+        # QUIT
         elif msg == "QUIT":
             print(user.address + " encerrou a sessao")
             del_user(user)
             break
 
+        # JOIN
         elif msg[:len("JOIN ")] == "JOIN ":
             desired_channel = msg[len('JOIN '):]
             channel = user.find_channel(desired_channel)
@@ -186,6 +189,7 @@ def func_client(user):
             user.send(tmp[:-1])
             user.send(f":server 366 {user.nickname} {desired_channel} :End of/NAMES list")
 
+        # PART
         elif msg == "PART":
             # Caso nao estiver no MAIN, sai do canal
             if user.current.name != "#MAIN":
@@ -193,14 +197,14 @@ def func_client(user):
                 user.change_channel(user.find_channel('#MAIN'))
                 [target.send(f":{user.nickname} PART") for target in old.members]
 
-
-
+        # LIST
         elif msg == "LIST":
             user.send(f":server 321 {user.nickname} Channel:Users Name")
             print(user.channels)
             [user.send(f":server 322 {user.nickname} {chan.name}:{len(chan.members)}") for chan in user.channels[2:]]
             user.send(f":server 323 {user.nickname} End of/LIST")
 
+        # PRIVMSG
         elif msg[:len("PRIVMSG ")] == "PRIVMSG ":
             msg_tmp = msg[len("PRIVMSG "):]
 
@@ -214,8 +218,6 @@ def func_client(user):
                     tmp = f":{user.nickname} " + msg
                     [target_user.send(tmp) for target_user in target.members if target_user != user]
 
-
-
             else:
                 target = user.find_user(dest)
                 if target == None:
@@ -223,6 +225,7 @@ def func_client(user):
                 else:
                     target.send(f":{user.nickname} " + msg)
 
+        # WHO
         elif msg[:len("WHO ")] == "WHO ":
             name = msg[len("WHO "):]
             if name[0] == '#':
