@@ -14,26 +14,22 @@ channel = "#MAIN"
 
 nick_flag = False
 user_flag = False
-wait_flag = False
+
 
 ########################################################
 
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-lock = threading.Lock()
-
 
 def send(msg):
     s.send(bytes(msg, "utf-8"))
 
 
 def wait_for_response():
-    lock.acquire()
     ready = select.select([s],[],[],0.5)
     if ready[0]:
         reply = s.recv(buffer_size).decode("utf-8")
     else:
         reply = "OK"
-    lock.release()
     return reply
 
 ####################################################################
@@ -41,56 +37,90 @@ def wait_for_response():
 ####################################################################
 
 def parse_message(msg: str) -> str:
-    if msg[:len(":servidor ")] == ':servidor ':
-        reply = msg[len(":servidor "):]
+    if msg[:len(":server ")] == ':server ':
+        reply = msg[len(":server "):]
         numeric = int(reply[:3])
         
         # ERRORS
-        if numeric in [431,433,461,432,403,401,421]:
-            pass
+        if numeric in [432,433,461,403,401,421]:
+            if numeric == 432:
+                print(f"Erro 431: Problemas no nome {reply.split(' ')[2]}")
+            elif numeric == 433:
+                print(f"Erro 433: O nick {reply.split(' ')[2]} ja esta em uso")
+            elif numeric == 461:
+                print("Erro 461: numero de parametros insuficiente")
+            elif numeric == 403:
+                print(f"Erro 403: {reply.split(' ')[2]} canal nao encontrado" )
+            elif numeric == 401:
+                print(f"Erro 401: {reply.split(' ')[2]} usuario nao encontrado")
+            elif numeric == 421:
+                print(f"Erro 421: Comando {reply.split(' ')[2]} nao existe")
 
         # REPLIES
         elif numeric in [353,366,321,322,323,352,315]:
             if numeric == 353:
-                channel = reply[reply.find('=')+2:reply.find(':')-1]
-                print(channel+':\n')
+                chan = reply[reply.find('=')+2:reply.find(':')-1]
+                print(chan+':')
                 users = reply[reply.find(':')+1:].split()
                 for user in users:
-                    print(" "*len(channel+1) + user)
+                    print("    " + user)
             
-            elif numeric == 366 or numeric == 323 or numeric == 315:
-                print("End of list")
+            elif numeric == 366:
+                global channel
+                print("Fim da Lista")
+                channel = reply.split(' ')[2]
+
+            elif numeric == 323 or numeric == 315:
+                print("Fim da Lista")
             
             elif numeric == 321:
-                print("Channel:Users Name")
+                print("Canal:Usuario Nome")
             
             elif numeric == 322:
-                print(reply.splt(' ')[2])
+                print(reply.split(' ')[2])
             
             elif numeric == 352:
-                params = reply[:reply.find(':')].split()[2:] + [reply[:reply.find(':')+1]]
-                (channel,host,nick,real) = (params[0],params[1],params[2],params[4])
-                print(f"{nick}: {channel} {host} {real}")
+                params = reply[:reply.find(':')].split()[2:] + [reply[reply.find(':')+1:]]
+                (chan,host,nick,real) = (params[0],params[1],params[2],params[4])
+                print(f"{nick}: {chan} {host} {real}".rstrip())
 
 
         else:
             print("Something went wrong: reply parse")
     else:
-        orig = msg[1:msg.find(' ')]
-        dest = msg.find('#')
-        text= msg[msg[1:].find(':')+1:]
-        tmp = ""
-        if dest != -1:
-            tmp += msg[dest:msg[dest:].find(' ')]
-        tmp += orig + ": " + text
+        (orig,msg) = (msg[1:msg.find(' ')],msg[msg.find(' ')+1:])
+        (op,msg) = (msg[:msg.find(' ')],msg[msg.find(' ')+1:])
+        if op == "PRIVMSG":
+            tmp = ""
+            if msg[0] == '#': # se o destino eh um canal botar canal junto com orig
+                tmp += msg[:msg.find(' ')]+' '
+            tmp+=orig+': '+msg[msg.find(':')+1:]
+        elif op == "NICK":
+            tmp = f"{orig} mudou o nick para {msg}"
+        elif op == "PART":
+            tmp = f"{orig} saiu desse canal"
+        elif op == "JOIN":
+            tmp = f"{orig} entrou no canal {msg}"
+        elif op == "QUIT":
+            tmp = f"{orig} desconectou do servidor"
         print(tmp)
-
 
 
 def format_message(msg: str,command: str) -> str:
     if command == "JOIN":
         idx = msg.find(' ')+1
-    return msg[:idx]+'#'+msg[idx:]
+        return msg[:idx]+'#'+msg[idx:]
+
+    elif command == "PRIVMSG":
+        msg = msg[len("PRIVMSG "):]
+        text = msg[msg.find(' ')+1:]
+        dest = msg[:msg.find(' ')+1]
+        return "PRIVMSG " + dest+':'+text
+
+
+
+
+
 
 ####################################################################
 
@@ -183,6 +213,16 @@ while True:
             msg = format_message(msg,"JOIN")
             send(msg)
 
+    elif msg[:len("PRIVMSG ")] == "PRIVMSG ":
+        if msg.find(':') > 0:
+            send(msg)
+        else:
+            msg = format_message(msg,"PRIVMSG")
+            send(msg)
+
+    elif msg[:len("PART ")] == "PART ":
+        channel = "#MAIN"
+        send(msg)
 
 
     else:

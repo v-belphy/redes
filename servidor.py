@@ -55,7 +55,7 @@ class User:
         # Garantir que o nickname e valido
         if ' ' in nickname or len(nickname) > 9:
             # self.send("Seu nickname deve conter menos de 9 caracteres e nao ter espaco")
-            self.send(f":server 431 {self.nickname} {nickname} :Erroneus nickname")
+            self.send(f":server 432 {self.nickname} {nickname} :Erroneus nickname")
 
         # Garantir que o nickname nao esta em uso
         elif str(nickname).upper() in [str(user.nickname).upper() for user in self.instances]:
@@ -159,6 +159,7 @@ def func_client(user):
         # QUIT
         elif msg == "QUIT":
             print(user.address + " encerrou a sessao")
+            user.send_all(f":{user.nickname} QUIT")
             del_user(user)
             break
 
@@ -171,7 +172,7 @@ def func_client(user):
             if channel == None:
                 # validacao de nome
                 if ' ' in desired_channel or len(desired_channel) > 9 or desired_channel[0]!='#':
-                    user.send(f":server 432 {user.nickname} {desired_channel} :Erroneus name")
+                    user.send(f":server 432 {user.nickname} {desired_channel} :Erroneus nickname")
                 else: 
                     channel = Channel(desired_channel)
                     user.channels+=[channel]
@@ -200,7 +201,6 @@ def func_client(user):
         # LIST
         elif msg == "LIST":
             user.send(f":server 321 {user.nickname} Channel:Users Name")
-            print(user.channels)
             [user.send(f":server 322 {user.nickname} {chan.name}:{len(chan.members)}") for chan in user.channels[2:]]
             user.send(f":server 323 {user.nickname} End of/LIST")
 
