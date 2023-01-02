@@ -246,13 +246,6 @@ def func_client(user):
         else:
             user.send(f":server 421 {user.nickname} {msg.split()[0]} :Unknown command")
 
-
-
-
-
-
-
-
 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 s.bind((HOST, PORT))
 s.listen()

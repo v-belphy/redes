@@ -41,17 +41,51 @@ def wait_for_response():
 ####################################################################
 
 def parse_message(msg: str) -> str:
-    if msg[0] == ':':
-        sender = msg[1:msg.find(' ')]
-        print(f"{sender}{msg[msg[1:].find(':'):]}")
-    else:
-        numeric = (msg[:3] if msg[:3].isnumeric() else False)
-        if numeric:
-            print(f"Error {numeric}: {msg[msg.find(':'):]}")
+    if msg[:len(":servidor ")] == ':servidor ':
+        reply = msg[len(":servidor "):]
+        numeric = int(reply[:3])
+        
+        # ERRORS
+        if numeric in [431,433,461,432,403,401,421]:
+            pass
+
+        # REPLIES
+        elif numeric in [353,366,321,322,323,352,315]:
+            if numeric == 353:
+                channel = reply[reply.find('=')+2:reply.find(':')-1]
+                print(channel+':\n')
+                users = reply[reply.find(':')+1:].split()
+                for user in users:
+                    print(" "*len(channel+1) + user)
+            
+            elif numeric == 366 or numeric == 323 or numeric == 315:
+                print("End of list")
+            
+            elif numeric == 321:
+                print("Channel:Users Name")
+            
+            elif numeric == 322:
+                print(reply.splt(' ')[2])
+            
+            elif numeric == 352:
+                params = reply[:reply.find(':')].split()[2:] + [reply[:reply.find(':')+1]]
+                (channel,host,nick,real) = (params[0],params[1],params[2],params[4])
+                print(f"{nick}: {channel} {host} {real}")
+
+
         else:
-            print("Something went wrong: parse")
-            print(msg)
-            exit(0)
+            print("Something went wrong: reply parse")
+    else:
+        orig = msg[1:msg.find(' ')]
+        dest = msg.find('#')
+        text= msg[msg[1:].find(':')+1:]
+        tmp = ""
+        if dest != -1:
+            tmp += msg[dest:msg[dest:].find(' ')]
+        tmp += orig + ": " + text
+        print(tmp)
+
+
 
 def format_message(msg: str,command: str) -> str:
     if command == "JOIN":
