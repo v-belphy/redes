@@ -15,7 +15,7 @@ class Channel:
 
 class User:
     instances = []
-    channels = {Channel('#VOID'), Channel('#MAIN')}
+    channels = [Channel('#VOID'), Channel('#MAIN')]
 
     def __init__(self, sock, address):
         self.sock = sock
@@ -51,7 +51,7 @@ class User:
         channel.members += [self]
 
 
-    def change_nick(self, nickname):
+    def change_nick(self, nickname,cadastro=False):
         # Garantir que o nickname e valido
         if ' ' in nickname or len(nickname) > 9:
             # self.send("Seu nickname deve conter menos de 9 caracteres e nao ter espaco")
@@ -65,7 +65,8 @@ class User:
         else:
             old_nickname = self.nickname
             self.nickname = nickname
-            self.send_all(f":{old_nickname} NICK {nickname}")
+            if not cadastro:
+                self.send_all(f":{old_nickname} NICK {nickname}")
 
 
 
@@ -112,7 +113,7 @@ def func_client(user):
     # Input nickname
     while user.nickname == None:
         proposed_name = user.recv() 
-        user.change_nick(proposed_name[len("NICK "):])
+        user.change_nick(proposed_name[len("NICK "):], cadastro=True)
 
     # Input nome real
     while user.realname == None:
@@ -170,16 +171,20 @@ def func_client(user):
                     user.send(f":server 432 {user.nickname} {desired_channel} :Erroneus name")
                 else: 
                     channel = Channel(desired_channel)
+                    user.channels+=[channel]
                     user.change_channel(channel)
                     user.send_channel(f":{user.nickname} {msg}")
-                    tmp = ""
-                    user.send(f":server 353 {user.nickname} = {desired_channel} :{[tmp+user.nickname+' ' for user in channel.members]}")
-                    user.send(f":server 366 {user.nickname} {desired_channel} :End of/NAMES list")
                 
             # Caso o canal exista e o usuario nao e membro do canal
             elif user not in channel.members:
                 user.change_channel(channel)
                 user.send_channel(f":{user.nickname} {msg}")
+            
+            tmp = f":server 353 {user.nickname} = {desired_channel} :"
+            for memb in channel.members:
+                tmp += f"{memb.nickname} "
+            user.send(tmp[:-1])
+            user.send(f":server 366 {user.nickname} {desired_channel} :End of/NAMES list")
 
         elif msg == "PART":
             # Caso nao estiver no MAIN, sai do canal
@@ -192,15 +197,14 @@ def func_client(user):
 
         elif msg == "LIST":
             user.send(f":server 321 {user.nickname} Channel:Users Name")
+            print(user.channels)
             [user.send(f":server 322 {user.nickname} {chan.name}:{len(chan.members)}") for chan in user.channels[2:]]
             user.send(f":server 323 {user.nickname} End of/LIST")
 
         elif msg[:len("PRIVMSG ")] == "PRIVMSG ":
             msg_tmp = msg[len("PRIVMSG "):]
-            print(msg_tmp)
 
             dest = msg_tmp[:msg_tmp.find(' ')]
-            print(dest)
             if dest[0] == '#':
                 target = user.find_channel(dest)
                 if target == None:
