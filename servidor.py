@@ -68,6 +68,22 @@ class User:
             if not cadastro:
                 self.send_all(f":{old_nickname} NICK {nickname}")
 
+    def change_user(self, msg):
+            msg = msg[len('USER '):]
+            foo = msg.find(':')
+            if foo < 0:
+                self.send(f":server 461 {self.nickname} USER :Not enough parameters")
+            else:
+                (params, realname) = (msg[:foo],msg[foo+1:])
+                print(realname + " " + params)
+                if len(params) < 2:
+                    self.send(f":server 461 {self.nickname} USER :Not enough parameters")
+                else:
+                    self.realname = realname
+
+                    self.username = params[0]
+                    self.host = socket.gethostbyaddr(self.address)[0]
+
 
 
     def format_the_nickname(self):
@@ -116,12 +132,9 @@ def func_client(user):
         user.change_nick(proposed_name[len("NICK "):], cadastro=True)
 
     # Input nome real
-    while user.realname == None:
-        msg = user.recv().split()
-        (username,realname) = (msg[1],msg[3][1:])
-        user.username = username
-        user.realname = realname
-        user.host = socket.gethostbyaddr(user.address)[0]
+    while user.realname == None and user.realname == None:
+        msg = user.recv()
+        user.change_user(msg)
 
     # Insere o usuario no canal "MAIN"
     channel = user.find_channel('#MAIN')
@@ -143,22 +156,11 @@ def func_client(user):
 
         # USER
         elif msg[:len('USER ')] == 'USER ':
-            msg = msg[len('USER '):]
-            foo = msg.find(':')
-            if foo < 0:
-                user.send(f":server 461 {user.nickname} USER :Not enough parameters")
-            else:
-                user.realname = msg[foo+1:]
-                params = msg[:foo]
-                if len(params) < 2:
-                    user.send(f":server 461 {user.nickname} USER :Not enough parameters")
-                else:
-                    user.username = params[0]
-                    user.host = user.sock.gethostname()
+            user.change_user(msg)
 
         # QUIT
         elif msg == "QUIT":
-            print(user.address + " encerrou a sessao")
+            print(user.host + " encerrou a sessao")
             user.send_all(f":{user.nickname} QUIT")
             del_user(user)
             break

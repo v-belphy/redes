@@ -12,8 +12,13 @@ channel = "#MAIN"
 # FLAGS
 ########################################################
 
-nick_flag = False
+quit_flag = False
+
+
+# essas flags sao usadas para verificar se o cadastro foi efetivado
+nick_flag = False  
 user_flag = False
+
 
 
 ########################################################
@@ -23,7 +28,9 @@ s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 def send(msg):
     s.send(bytes(msg, "utf-8"))
 
-
+# Usa a funcao select para implementar um timeout para uam resposta do servidor
+# Caso o servidor nao responda a funcao assume que nao houve erro e retorna OK
+# Acaba sendo usada apenas para a verificacao do cadastro
 def wait_for_response():
     ready = select.select([s],[],[],0.5)
     if ready[0]:
@@ -44,20 +51,24 @@ def parse_message(msg: str) -> str:
         # ERRORS
         if numeric in [432,433,461,403,401,421]:
             if numeric == 432:
-                print(f"Erro 431: Problemas no nome {reply.split(' ')[2]}")
+                tmp = f"Problemas no nome {reply.split(' ')[2]}"
             elif numeric == 433:
-                print(f"Erro 433: O nick {reply.split(' ')[2]} ja esta em uso")
+                tmp = f"O nick {reply.split(' ')[2]} ja esta em uso"
             elif numeric == 461:
-                print("Erro 461: numero de parametros insuficiente")
+                tmp = "Numero de parametros insuficiente"
             elif numeric == 403:
-                print(f"Erro 403: {reply.split(' ')[2]} canal nao encontrado" )
+                tmp = f"{reply.split(' ')[2]} canal nao encontrado" 
             elif numeric == 401:
-                print(f"Erro 401: {reply.split(' ')[2]} usuario nao encontrado")
+                tmp = f"{reply.split(' ')[2]} usuario nao encontrado"
             elif numeric == 421:
-                print(f"Erro 421: Comando {reply.split(' ')[2]} nao existe")
+                tmp = f"Comando {reply.split(' ')[2]} nao existe"
+
+            print(f"Erro {numeric}: {tmp}")
 
         # REPLIES
         elif numeric in [353,366,321,322,323,352,315]:
+
+            # printa a lista de usuarios de um canal
             if numeric == 353:
                 chan = reply[reply.find('=')+2:reply.find(':')-1]
                 print(chan+':')
@@ -65,6 +76,9 @@ def parse_message(msg: str) -> str:
                 for user in users:
                     print("    " + user)
             
+
+            # Sempre que o usuario usar o comando JOIN ele recebe uma lista e a mensagem de fim da lista possui o canal que o usuario entrou
+            # entao ela pode ser usada para manter a variavel channel sincronizada com o canal salvo no servidor.
             elif numeric == 366:
                 global channel
                 print("Fim da Lista")
@@ -79,6 +93,8 @@ def parse_message(msg: str) -> str:
             elif numeric == 322:
                 print(reply.split(' ')[2])
             
+
+            # Printa os resultados da query
             elif numeric == 352:
                 params = reply[:reply.find(':')].split()[2:] + [reply[reply.find(':')+1:]]
                 (chan,host,nick,real) = (params[0],params[1],params[2],params[4])
@@ -107,33 +123,38 @@ def parse_message(msg: str) -> str:
 
 
 def format_message(msg: str,command: str) -> str:
-    if command == "JOIN":
+    if command == 'J':
         idx = msg.find(' ')+1
         return msg[:idx]+'#'+msg[idx:]
 
-    elif command == "PRIVMSG":
+    elif command == "PM":
         msg = msg[len("PRIVMSG "):]
         text = msg[msg.find(' ')+1:]
         dest = msg[:msg.find(' ')+1]
         return "PRIVMSG " + dest+':'+text
-
-
-
-
-
+    
+    elif command == 'U':
+        msg = msg[len("USER "):]
+        idx = msg.find(' ')
+        (username,realname) = (msg[:idx],msg[idx:])
+        return f"USER {username} hostname :{realname}"
 
 ####################################################################
 
 def receive_messages():
+
     while True:
         try:
-            ready = select.select([s],[],[])
-            if ready[0]:
-                msg = s.recv(buffer_size).decode('utf-8')
-        except:
+            msg = s.recv(buffer_size).decode('utf-8')
+
+        except ConnectionAbortedError:
+            print("Conexao Terminada")
+            break
+
+        except Exception as e:
             s.close()
-            print('Falha na conexao:rcv')
-            exit()
+            print(f'Falha na conexao:{e}')
+            exit(1)
 
         parse_message(msg)
 
@@ -146,7 +167,7 @@ while True:
         print("Servidor offline")
         exit()
 
-s.setblocking(0)
+s.setblocking(False)
 
 # CADASTRO
 while not nick_flag:
@@ -164,13 +185,15 @@ while not user_flag:
     realname = input("Digite seu nome real: ")
     print("")
     user_flag = True
-    send(f"USER {username} foo :{realname}")
+    send(f"USER {username} hostname :{realname}")
     reply = wait_for_response()
     if reply != "OK":
         parse_message(reply)
         user_flag = False
 
 print("Conectado\n")
+
+s.setblocking(True)
 
 # Multi treading
 thread = threading.Thread(target=receive_messages)
@@ -202,6 +225,7 @@ while True:
         )
 
     elif msg == "QUIT":
+        quit_flag = True
         send(msg)
         s.close()
         exit()
@@ -210,22 +234,23 @@ while True:
         if msg.find('#') > 0:
             send(msg)
         else:
-            msg = format_message(msg,"JOIN")
+            msg = format_message(msg,"J")
             send(msg)
 
     elif msg[:len("PRIVMSG ")] == "PRIVMSG ":
         if msg.find(':') > 0:
             send(msg)
         else:
-            msg = format_message(msg,"PRIVMSG")
+            msg = format_message(msg,"PM")
             send(msg)
 
     elif msg[:len("PART ")] == "PART ":
         channel = "#MAIN"
         send(msg)
 
+    elif msg[:len("USER ")] == "USER ":
+        send(format_message(msg,"U"))
 
     else:
         send(msg)
-        # sys.stdout.write("\033[F") # Apaga a ultima linha pra evitar mensagem duplicada no chat do usuario que enviou a mensagem
-        # sys.stdout.write("\033[K")
+
