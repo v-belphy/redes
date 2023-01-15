@@ -3,7 +3,7 @@ import threading
 from time import sleep
 import select
 
-HOST = "localhost"
+HOST = "25.71.201.16"
 PORT = 194
 buffer_size = 1024 # Tamanho da mensagem
 channel = "#MAIN"

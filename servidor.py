@@ -2,11 +2,11 @@ import socket
 import threading
 import sys
 
-HOST = "localhost"
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+HOST = "25.71.201.16"
 PORT = 194
 buffer_size = 1024 # Tamanho da mensagem
 
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 class Channel:
     def __init__(self, name):
@@ -82,7 +82,10 @@ class User:
                     self.realname = realname
 
                     self.username = params[0]
-                    self.host = socket.gethostbyaddr(self.address)[0]
+                    try:
+                        self.host = socket.gethostbyaddr(self.address)[0]
+                    except:
+                        self.host = "host"
 
 
 
